@@ -10,7 +10,8 @@ Features
   * Simple, small code base, easy to learn API
   * Active Record design pattern
   * database sharding, ARconn simplify multi-database access.
-  * reuse connections when you access different db on the same mysql instance.
+  * reuse jdbc connections when you access different db on the same mysql instance.
+  * 
 Example
 ========
 ```java
