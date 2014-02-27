@@ -25,4 +25,4 @@ then import the folder from your Eclipse.
 
 
 ========
-Oh, that's all! Easy to understand, right? Please feel free to contact me(2005dawnbreaks@gmail.com) if you have any questions.
+Please feel free to contact me(2005dawnbreaks@gmail.com) if you have any questions.
