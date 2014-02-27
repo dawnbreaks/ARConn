@@ -1,14 +1,16 @@
 ARConn
 ========
 
-A simple ORM framework, implements the Active Record design pattern, and support database sharding.
+A simple ORM framework, support database sharding. Do you agree that  Hibernate suck, too complex and not support database sharding? If yes,  ARConn is your best alternative.
 
 
 Features
 ========
 
   * Simple, small code base, easy to learn API
-
+  * Active Record design pattern
+  * database sharding, ARconn simplify multi-database access.
+  * reuse connections when you access different db on the same mysql instance.
 Example
 ========
 ```java
