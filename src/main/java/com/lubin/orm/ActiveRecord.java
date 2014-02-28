@@ -3,7 +3,6 @@ package com.lubin.orm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.lubin.orm.annotation.AutoIncrement;
 import com.lubin.orm.annotation.PrimaryKey;
 
 import java.lang.reflect.Field;
@@ -35,7 +34,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 		this.dbName = dbName;
 	}
 	
-	public void copyDBData(ActiveRecord ar){
+	public void copyDBData(T ar){
 		ar.setConn(this.conn);
 		ar.setDbName(this.dbName);
 	}
@@ -114,7 +113,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 	        statement.executeUpdate();
 	    }
 	}
-    private boolean existInDatabase() {
+   /* private boolean existInDatabase() {
         for (Field field : getClass().getDeclaredFields()) {
             PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
             if (primaryKey != null) {
@@ -137,7 +136,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
         return false;
     }
-
+*/
 
 
     /*
@@ -315,7 +314,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 		    createResultsFromResultSet( clazz, resultSet, results );
 		    return results;
 		}
-    private <I> void createResultsFromResultSet( Class<I> clazz, ResultSet resultSet, ArrayList<I> results )
+    private void createResultsFromResultSet( Class<T> clazz, ResultSet resultSet, ArrayList<T> results )
         throws SQLException
     {
         while ( resultSet.next() ) {
@@ -323,7 +322,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
     }
 
-    private <I> I createResultFromRow( Class<I> clazz, ResultSet resultSet )
+    private T createResultFromRow( Class<T> clazz, ResultSet resultSet )
         throws SQLException
     {
         try {
@@ -333,10 +332,10 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
     }
 
-    private <I> I createResultFromRowWithError( Class<I> clazz, ResultSet resultSet )
+    private T createResultFromRowWithError( Class<T> clazz, ResultSet resultSet )
         throws SQLException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        I instance = clazz.newInstance();
+        T instance = clazz.newInstance();
         int index = 1;
         for ( Field field : clazz.getDeclaredFields() ) {
             field.setAccessible( true );
@@ -348,7 +347,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
             }
         }
         
-        copyDBData((ActiveRecord) instance);
+        copyDBData(instance);
         return instance;
     }
  
@@ -489,7 +488,27 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         return null;
     }
     
-    private String tblName2ClassName(String tblName){
+ 
+    private String className2tblName(String className){
+    	StringBuffer res = new StringBuffer();
+    	int len = className.length();
+    	for(int i=0;i<len;i++){
+    		char c = className.charAt(i);
+    		if(i ==0 && c <='Z' &&  c>= 'A'){// lower first char
+    			res.append((char)(c+32));
+    		}else if(c <='Z' &&  c>= 'A'){
+    			res.append('_');
+    			res.append((char)(c+32));
+    		}else{
+    			res.append(c);
+    		}
+    	}
+		return res.toString();
+    }
+    
+    
+    @SuppressWarnings("unused")
+	private String tblName2ClassName(String tblName){
     	StringBuffer res = new StringBuffer();
     	int len = tblName.length();
     	for(int i=0;i<len;i++){
@@ -504,24 +523,6 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
     			if(c <='z' &&  c>= 'a'){
     				res.append((char)(c-32));
     			}
-    		}else{
-    			res.append(c);
-    		}
-    	}
-		return res.toString();
-    }
-    
-    
-    private String className2tblName(String className){
-    	StringBuffer res = new StringBuffer();
-    	int len = className.length();
-    	for(int i=0;i<len;i++){
-    		char c = className.charAt(i);
-    		if(i ==0 && c <='Z' &&  c>= 'A'){// lower first char
-    			res.append((char)(c+32));
-    		}else if(c <='Z' &&  c>= 'A'){
-    			res.append('_');
-    			res.append((char)(c+32));
     		}else{
     			res.append(c);
     		}

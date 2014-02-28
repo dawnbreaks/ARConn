@@ -3,20 +3,13 @@ package com.lubin.orm.example;
 import java.sql.Timestamp;
 
 import com.lubin.orm.ActiveRecord;
-import com.lubin.orm.annotation.AutoIncrement;
 import com.lubin.orm.annotation.PrimaryKey;
 
 
-
-/**
- * TblMail entity. @author MyEclipse Persistence Tools
- */
-
-public class TblMail extends ActiveRecord<TblMail> implements java.io.Serializable {
+public class TblMail extends ActiveRecord<TblMail>  {
 
 	// Fields
 	@PrimaryKey
-	@AutoIncrement
 	private Long mail_id;
 	private Integer folder_id;
 	private String sender;
