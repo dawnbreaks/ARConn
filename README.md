@@ -23,15 +23,9 @@ Example
 		ARConn conn = new ARConn( jdbcConn, dbName);
 		try{
 			TblMail mail = conn.create(TblMail.class);
-			mail.setAttach_flag("1");
-			mail.setFolder_id(0);
 			mail.setSender("308181687@qq.com");
-			mail.setMail_server_uuid("308181687@qq.com");
 			mail.setReceiver("308181687@qq.com");
-			mail.setCc("308181687@qq.com");
-			mail.setBcc("308181687@qq.com");
 			mail.setSubject("test");
-			mail.setReply_to("308181687@qq.com");
 			mail.insert();	//insert to db
 			
 			TblMail mail_ = conn.find(TblMail.class, 1L);  // find by primary key
