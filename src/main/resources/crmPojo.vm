@@ -1,0 +1,34 @@
+package ${pojo.javaPackage};
+
+#foreach(${import} in ${pojo.imports})
+#if( "${import}" != "" )
+import ${import};
+#end
+#end
+
+import com.lubin.orm.ActiveRecord;
+import com.lubin.orm.annotation.PrimaryKey;
+
+public class $pojo.name extends ActiveRecord<${pojo.name}>
+{
+#foreach($field in $pojo.fields) 
+#if($field.annotation)
+	$field.annotation
+#end
+	private $field.javaType $field.name;
+#end
+
+
+
+#foreach($field in $pojo.fields)
+	public void ${field.setter}($field.javaType $field.name)
+    {
+       this.$field.name = $field.name;
+    }
+    public $field.javaType ${field.getter}()
+    {
+       return this.${field.name};
+    }
+    
+#end
+}

@@ -34,5 +34,49 @@
 			<artifactId>hibernate-tools</artifactId>
 			<version>3.2.0.ga</version>
 		</dependency>
+		<dependency>
+	        <groupId>mysql</groupId>
+	        <artifactId>mysql-connector-java</artifactId>
+	        <version>5.1.6</version>
+	     </dependency>
+		<dependency>
+			<groupId>commons-logging</groupId>
+			<artifactId>commons-logging</artifactId>
+			<version>1.0.4</version>
+		</dependency>
+		<dependency>
+		  <groupId>org.apache.velocity</groupId>
+		  <artifactId>velocity</artifactId>
+		  <version>1.7</version>
+		</dependency>
+       <dependency>
+            <groupId>jalopy</groupId>
+          <artifactId>jalopy</artifactId>
+          <version>1.5b3</version>
+       </dependency>
+        <dependency>
+			<groupId>log4j</groupId>
+			<artifactId>log4j</artifactId>
+			<version>1.2.17</version>
+			<exclusions>
+				  <exclusion>
+					<artifactId>mail</artifactId>
+					<groupId>javax.mail</groupId>
+				  </exclusion>
+				  <exclusion>
+					<artifactId>jms</artifactId>
+					<groupId>javax.jms</groupId>
+				  </exclusion>
+				  <exclusion>
+					<artifactId>jmxtools</artifactId>
+					<groupId>com.sun.jdmk</groupId>
+				  </exclusion>
+				  <exclusion>
+					<artifactId>jmxri</artifactId>
+					<groupId>com.sun.jmx</groupId>
+				  </exclusion>
+			</exclusions>
+			<optional>true</optional>
+       </dependency>
 	</dependencies>
 </project>

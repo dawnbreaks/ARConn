@@ -1,0 +1,60 @@
+package ${pojo.javaPackage};
+
+#foreach(${import} in ${pojo.imports})
+#if( "${import}" != "" )
+import ${import};
+#end
+#end
+
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ToStringBuilder;
+
+public class $pojo.name
+{
+    #foreach($field in $pojo.fields)
+        private $field.javaType $field.name;
+    #end
+
+    #foreach($field in $pojo.fields)
+     public void ${field.setter}($field.javaType $field.name)
+     {
+        this.$field.name = $field.name;
+     }
+     public $field.javaType ${field.getter}()
+     {
+            return this.${field.name};
+     }
+    #end
+
+@Override
+public boolean equals(Object o) {
+if ( !(o instanceof $pojo.name) ) {
+    return false;
+}
+$pojo.name rhs = ($pojo.name) o;
+return new EqualsBuilder().appendSuper(super.equals(o))
+#foreach($field in $pojo.fields)
+.append(${field.name}, rhs.${field.name})
+#end .isEquals();
+}
+
+@Override
+public int hashCode() {
+ return new HashCodeBuilder(61, 15)
+.appendSuper(super.hashCode())
+#foreach($field in $pojo.fields)
+.append(${field.name})
+#end.toHashCode();
+}
+
+@Override
+public String toString() {
+ return new ToStringBuilder(this)
+ 	.appendSuper(super.toString())
+#foreach($field in $pojo.fields)
+.append("${field.name}", ${field.name})
+#end.toString();
+}
+
+}
