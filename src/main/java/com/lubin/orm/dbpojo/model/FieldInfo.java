@@ -1,5 +1,8 @@
 package com.lubin.orm.dbpojo.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.ReflectionToStringBuilder;
 
@@ -11,7 +14,7 @@ public class FieldInfo {
     private String javaType;
     private String getter;
     private String setter;
-    private String annotation;
+    private List<String> annotations = new ArrayList<String>();
 
     public String getName() {
         return name;
@@ -63,12 +66,12 @@ public class FieldInfo {
         this.setter = setter;
     }
     
-	public void setAnnotation(String annotation) {
-		this.annotation = annotation;
+	public void addAnnotations(String annotation) {
+		this.annotations.add(annotation);
 	}
 
-	public String getAnnotation() {
-		return annotation;
+	public List<String> getAnnotations() {
+		return this.annotations;
 	}
 
     @Override

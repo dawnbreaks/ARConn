@@ -6,14 +6,17 @@ import ${import};
 #end
 #end
 
-import com.lubin.orm.ActiveRecord;
-import com.lubin.orm.annotation.PrimaryKey;
+import com.crm.orm.ActiveRecord;
+import com.crm.orm.annotation.PrimaryKey;
+import com.crm.orm.annotation.AutoIncrement;
 
 public class $pojo.name extends ActiveRecord<${pojo.name}>
 {
 #foreach($field in $pojo.fields) 
-#if($field.annotation)
-	$field.annotation
+#foreach($annotation in $field.annotations)
+#if($annotation)
+    $annotation
+#end
 #end
 	private $field.javaType $field.name;
 #end

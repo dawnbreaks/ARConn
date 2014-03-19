@@ -1,13 +1,16 @@
 package com.lubin.orm.dbpojo;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -65,10 +68,23 @@ public class CodeGenerator
     }
 
     
-    public ClassInfo loadTableMetadata(String tableName, String schema)
+    public ClassInfo loadTableMetadata(String tableName, String schema) throws SQLException
     {
-        logger.info("Table : " + tableName + " Java Class : " + nameConversion.tableNameToClassName(tableName));
-        final String sql = String.format("select * from %s where 1=2",schema+"."+tableName);
+    	logger.info("Table : " + tableName + " Java Class : " + nameConversion.tableNameToClassName(tableName));
+        
+        DatabaseMetaData meta = connection.getMetaData();
+
+        ResultSet pkResultset = meta.getPrimaryKeys(schema, schema, tableName);
+
+        Set<String> pkSet = new HashSet<String> ();
+        while (pkResultset.next()) {
+          String columnName = pkResultset.getString("COLUMN_NAME");
+          pkSet.add(columnName.toLowerCase());
+        }
+        pkResultset.close();
+      
+        
+        final String sql = metadataQuerySQL(schema+"."+tableName);
         Statement statement = null;
         ResultSet rs = null;
         ResultSetMetaData metaData;
@@ -92,8 +108,14 @@ public class CodeGenerator
                         pojoFieldPrototype.setSqlType(metaData.getColumnTypeName(i));
                         pojoFieldPrototype.setJavaType(sqlToJavaType.getJavaType(metaData.getColumnTypeName(i)));
                         if(metaData.isAutoIncrement(i)){
-                        	pojoFieldPrototype.setAnnotation("@PrimaryKey");
+                        	pojoFieldPrototype.addAnnotations("@AutoIncrement");
                         }
+                        
+                        if(pkSet.contains(metaData.getColumnName(i).toLowerCase())){
+                        	pojoFieldPrototype.addAnnotations("@PrimaryKey");
+                        }
+                        
+                        
                         imp = sqlToJavaType.getImportString(metaData.getColumnTypeName(i));
                         if(imp!=null && !pojoPrototype.getImports().contains(imp)){
                             pojoPrototype.getImports().add(imp);
@@ -137,6 +159,10 @@ public class CodeGenerator
         return pojoPrototype;
     }
     
+    public final String metadataQuerySQL(String tableName)
+    {
+        return String.format("select * from %s where 1=2",tableName);
+    }
     
     //for oracle database
 //    public List<String> getAllTablesInSchema(String shemaName)
@@ -189,7 +215,7 @@ public class CodeGenerator
         return tables;
     }
     
-    public void genereateCode(String dbName, String templateName, String path, String javaPackage){
+    public void genereateCode(String dbName, String templateName, String path, String javaPackage) throws SQLException{
     	
     	List<String> tables = listAllTables("SHOW TABLES FROM "+dbName);
         PojoWriter pojoWriter = new PojoWriter();
@@ -209,7 +235,7 @@ public class CodeGenerator
     }
     
     
-    public static void main(String[] args)
+    public static void main(String[] args) throws SQLException
     {
     	
         CodeGenerator codeGenerator = new CodeGenerator();

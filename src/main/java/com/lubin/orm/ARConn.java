@@ -29,7 +29,21 @@ public class ARConn{
 		this.dbName = dbName;
 	}
 	
-	public <I extends ActiveRecord<I>> void copyDBData(ActiveRecord<I> ar){
+	
+	public void beginTX() throws SQLException{
+		conn.setAutoCommit(false);
+	}
+	
+	public void commit() throws SQLException{
+		conn.commit();
+	}
+	
+	public void rollback() throws SQLException{
+		conn.rollback();
+	}
+	
+	
+	public <I extends ActiveRecord<I>> void iniARObj(ActiveRecord<I> ar){
 		ar.setConn(this.conn);
 		ar.setDbName(this.dbName);
 	}
@@ -38,7 +52,7 @@ public class ARConn{
 		I instance;
 		try {
 			instance = clazz.newInstance();
-			copyDBData(instance);
+			iniARObj(instance);
 		}catch (Exception e) {
 			throw new RuntimeException("create",e);
 		}
@@ -49,7 +63,8 @@ public class ARConn{
 		I instance;
 		try {
 			instance = clazz.newInstance();
-			copyDBData(instance);
+			iniARObj(instance);
+			System.out.print("");
 			return instance.find(id);
 		}catch (Exception e) {
 			throw new RuntimeException("find",e);
@@ -60,7 +75,7 @@ public class ARConn{
 		I instance;
 		try {
 			instance = clazz.newInstance();
-			copyDBData(instance);
+			iniARObj(instance);
 			return instance.findAll(columnName,value);
 		}catch (Exception e) {
 			throw new RuntimeException("findAll",e);
@@ -71,7 +86,7 @@ public class ARConn{
 		I instance;
 		try {
 			instance = clazz.newInstance();
-			copyDBData(instance);
+			iniARObj(instance);
 			return instance.queryAll(criterion);
 		}catch (Exception e) {
 			throw new RuntimeException("queryAll",e);

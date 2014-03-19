@@ -1,10 +1,5 @@
 package com.lubin.orm;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.lubin.orm.annotation.PrimaryKey;
-
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -13,10 +8,18 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.lubin.orm.annotation.AutoIncrement;
+import com.lubin.orm.annotation.PrimaryKey;
+
+
 public abstract class ActiveRecord<T extends ActiveRecord<T>>
 {
     private Connection conn =null;
     private String dbName =null;
+
 
     public Connection getConn() {
 		return conn;
@@ -26,29 +29,29 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 		this.conn = conn;
 	}
 
+	/*
+	 * database name
+	 */
 	public String getDbName() {
 		return dbName;
 	}
 
+	
+	/*
+	 * database.table name
+	 */
+	public String getTableName() {
+		return dbName+"."+className2tblName(getClass().getSimpleName());
+	}
+	
 	public void setDbName(String dbName) {
 		this.dbName = dbName;
 	}
 	
-	public void copyDBData(T ar){
+	public void copyDBData(ActiveRecord<T> ar){
 		ar.setConn(this.conn);
 		ar.setDbName(this.dbName);
 	}
-	
-//	public <I>  I createAR(Class<I> clazz){
-//		I instance;
-//		try {
-//			instance = clazz.newInstance();
-//			copyDBData((ActiveRecord) instance);
-//		}catch (Exception e) {
-//			throw new RuntimeException("createAR",e);
-//		}
-//		return instance;
-//	}
 
 	public void close(){
 		try {
@@ -89,11 +92,35 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 	        logger().debug("Executing query '{}' with values {}", query, args);
 	        statement.executeUpdate();
 	    }
+	    
+    	for (Field field : getClass().getDeclaredFields()) {
+            PrimaryKey primaryKeyField = field.getAnnotation(PrimaryKey.class);
+            AutoIncrement autoIncrement = field.getAnnotation(AutoIncrement.class);
+            field.setAccessible(true);
+            
+            if(primaryKeyField != null && autoIncrement!=null) {
+            	
+             	String getLastInsertIdSql = "select LAST_INSERT_ID();";
+         	    ResultSet resultSet = connection.createStatement().executeQuery(getLastInsertIdSql);
+         	    if(resultSet.next()){
+         	    	Object lastInsertId = resultSet.getLong(1);
+         	    	try{
+         	    		if(!field.getType().isAssignableFrom(lastInsertId.getClass()) && field.getType().isAssignableFrom(Integer.class)){
+                         	field.set(this, new Integer(((Long)lastInsertId).intValue()));
+                         }else{
+                         	field.set(this, lastInsertId);
+                         } 
+         	    	}catch (Exception e) {
+         	    		throw new RuntimeException("fetch LAST_INSERT_ID got failure",e);
+         	    	}
+         	    	break;
+         	    }
+         	    
+            }
+        } 	 
 	}
 	
-    /**
-	use update(...) method directly if primary key is not auto_increment, 
-     */
+
     public void update()
     throws SQLException
 	{
@@ -101,6 +128,9 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 	}
 	
 	
+    /*
+     * update tbl set f1=x1,....  where pk1=x1 and pk2=x2
+     */
 	public void update(Connection connection, String dataBaseName)
 	    throws SQLException
 	{
@@ -110,10 +140,16 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 	    if ( statement != null) {
 	        bindArguments( statement, args );
 	        logger().debug("Executing query '{}' with values {}", query, args);
-	        statement.executeUpdate();
+	        int c = statement.executeUpdate();
+	        if(c ==0){
+	        	throw new RuntimeException("ActiveRecord update nothing|query="+query);
+	        }
 	    }
 	}
-   /* private boolean existInDatabase() {
+	
+	/*
+    @SuppressWarnings("unused")
+	private boolean existInDatabase() {
         for (Field field : getClass().getDeclaredFields()) {
             PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
             if (primaryKey != null) {
@@ -136,34 +172,55 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
         return false;
     }
+
 */
 
-
     /*
-     * update table xxx set field1=x1,field2=x2 ... where primaryKey=keyValue.
+     * update table xxx set field1=x1,field2=x2 ... where pk1=v1 and pk2=v2....
      */
     private String buildUpdateQuery(ArrayList<Object> args, String dataBaseName) {
         try {
             Query.UpdateQuery query = Query.update( (dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName()));
-            String primaryKeyColumn = null;
-            Object primaryKeyValue = null;
+            Query.WhereQuery whereClause = null;
+  
+            ArrayList<Object> pkValues = new ArrayList<Object>();
+            ArrayList<String> pkNames = new ArrayList<String>();
+            
             for (Field field : getClass().getDeclaredFields()) {
                 PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
                 field.setAccessible(true);
                 if (primaryKey != null) {
-                    primaryKeyColumn = field.getName();
-                    primaryKeyValue = field.get(this);
+                	pkNames.add(field.getName());
+                	pkValues.add(field.get(this));
                 } else {
                     args.add(field.get(this));
                     query.set( field.getName() , "?");
                 }
-            }
-            args.add( primaryKeyValue );
-            return query.where(primaryKeyColumn).isEqualTo( "?" ).toString();
+           }
+            
+           if(pkNames.isEmpty()){
+        	   throw new RuntimeException(getClass().getName()+ " did not has a primary key!");
+           }
+           
+           for(String keyName : pkNames){
+        	   if(whereClause==null){
+        		   whereClause = query.where(keyName).isEqualTo( "?" );
+        	   }else{
+        		   whereClause = whereClause.and(keyName).isEqualTo( "?" );
+        	   }
+           }
+           args.addAll( pkValues );
+           return whereClause.toString();
+           
         } catch ( IllegalAccessException ignored ) {}
         return null;
     }
 
+    
+    /*
+     * ignore null value.
+     * insert into tbl(f1,f2....)values(v1,v2.....);
+     */
     private String buildInsertionQuery( ArrayList<Object> args, String dataBaseName )
     {
         try {
@@ -189,12 +246,14 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
     }
 
+    @Deprecated
     public List<T> search()
         throws SQLException
     {
     	return search(this.getConn(),this.getDbName());
     }
     
+    @Deprecated
     public List<T> search(Connection connection, String dataBaseName)
     throws SQLException
 	{
@@ -230,7 +289,6 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 		PreparedStatement statement = connection.prepareStatement( query );
 	    bindArguments( statement, args );
 
-	
 		ResultSet resultSet = statement.executeQuery();
 	    ArrayList<T> results = new ArrayList<T>();
 	    createResultsFromResultSet( clazz, resultSet, results );
@@ -244,77 +302,79 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 	 /*
 	  * find object by non-primary key.
 	  */
-	  public T find(String field, Object value)
-	    throws SQLException
-		{
-			return find(this.getConn(),this.getDbName(), field, value);
-		}
+	public T find(String columnName, Object value)
+    throws SQLException
+	{
+		return find(this.getConn(),this.getDbName(), columnName, value);
+	}
 		
-		public T find(Connection connection, String dataBaseName,String columnName, Object value)
-		throws SQLException
-		{
-			List<T> resList = findAll(connection, dataBaseName, columnName, value);
-			if(resList == null || resList.isEmpty())
-				return null;
-			else{
-				return resList.get(0);	
-			}
+	public T find(Connection connection, String dataBaseName,String columnName, Object value)
+	throws SQLException
+	{
+		List<T> resList = findAll(connection, dataBaseName, columnName, value);
+		if(resList == null || resList.isEmpty())
+			return null;
+		else{
+			return resList.get(0);	
 		}
+	}
 		
-		public List<T> findAll(String columnName, Object value)
-		throws SQLException
-		{
-			return findAll(this.getConn(),this.getDbName(), columnName, value);
-		}
+	public List<T> findAll(String columnName, Object value)
+	throws SQLException
+	{
+		return findAll(this.getConn(),this.getDbName(), columnName, value);
+	}
 		
-		public List<T> findAll(Connection connection, String dataBaseName,String columnName, Object value)
-		throws SQLException
-		{
-		    ArrayList<Object> args = new ArrayList<Object>();
-		    args.add(value);
-		    
-		    String query = buildFindQuery( dataBaseName, columnName);
-			PreparedStatement statement = connection.prepareStatement( query );
-		    bindArguments( statement, args );
+	public List<T> findAll(Connection connection, String dataBaseName,String columnName, Object value)
+	throws SQLException
+	{
+	    ArrayList<Object> args = new ArrayList<Object>();
+	    args.add(value);
+	    
+	    String query = buildFindQuery( dataBaseName, columnName);
+		PreparedStatement statement = connection.prepareStatement( query );
+	    bindArguments( statement, args );
 
-			ResultSet resultSet = statement.executeQuery();
-		    ArrayList<T> results = new ArrayList<T>();
-		    createResultsFromResultSet( clazz, resultSet, results );
-		    return results;
-		}
+		ResultSet resultSet = statement.executeQuery();
+	    ArrayList<T> results = new ArrayList<T>();
+	    createResultsFromResultSet( clazz, resultSet, results );
+	    return results;
+	}
 		
 		
-		public List<T> queryAll(String criterion)
-		throws SQLException
-		{
-			return queryAll(this.getConn(),this.getDbName(), criterion);
-		}
-		
-		public List<T> queryAll(Connection connection, String dataBaseName, String criterion)
-		throws SQLException
-		{
-			
-
-			Query.SelectionQuery select = null;
-			for ( Field field : clazz.getDeclaredFields() ) {
-
-	            String fieldName = field.getName();
-	            if (select == null) {
-	                select = Query.select(fieldName);
-	            } else {
-	                select = select.and(fieldName);
-	            }
-	        }
+	public List<T> queryAll(String criterion)
+	throws SQLException
+	{
+		return queryAll(this.getConn(),this.getDbName(), criterion);
+	}
 	
-			String query = select.from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())).toString()+" where "+criterion;
+	/*
+	 * select * from tbl where criterion.
+	 */
+	public List<T> queryAll(Connection connection, String dataBaseName, String criterion)
+	throws SQLException
+	{
+		Query.SelectionQuery select = null;
+		for ( Field field : clazz.getDeclaredFields() ) {
+
+            String fieldName = field.getName();
+            if (select == null) {
+                select = Query.select(fieldName);
+            } else {
+                select = select.and(fieldName);
+            }
+        }
+
+		String query = select.from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())).toString()+" where "+criterion;
+
+		PreparedStatement statement = connection.prepareStatement( query );
+		ResultSet resultSet = statement.executeQuery();
+	    ArrayList<T> results = new ArrayList<T>();
+	    createResultsFromResultSet( clazz, resultSet, results );
+	    return results;
+	}
 	
-			PreparedStatement statement = connection.prepareStatement( query );
-			ResultSet resultSet = statement.executeQuery();
-		    ArrayList<T> results = new ArrayList<T>();
-		    createResultsFromResultSet( clazz, resultSet, results );
-		    return results;
-		}
-    private void createResultsFromResultSet( Class<T> clazz, ResultSet resultSet, ArrayList<T> results )
+    private  void createResultsFromResultSet( Class<T> clazz, ResultSet resultSet, ArrayList<T> results )
         throws SQLException
     {
         while ( resultSet.next() ) {
@@ -322,8 +382,8 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
     }
 
-    private T createResultFromRow( Class<T> clazz, ResultSet resultSet )
-        throws SQLException
+    private  T createResultFromRow( Class<T> clazz, ResultSet resultSet )
+    throws SQLException
     {
         try {
             return createResultFromRowWithError( clazz, resultSet );
@@ -332,25 +392,35 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         }
     }
 
-    private T createResultFromRowWithError( Class<T> clazz, ResultSet resultSet )
-        throws SQLException, IllegalAccessException, InstantiationException, NoSuchFieldException
+    private  T createResultFromRowWithError( Class<T> clazz, ResultSet resultSet )
+    throws SQLException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         T instance = clazz.newInstance();
         int index = 1;
         for ( Field field : clazz.getDeclaredFields() ) {
             field.setAccessible( true );
-            Object value = resultSet.getObject( index++ );
-            if(!field.getType().isAssignableFrom(value.getClass()) && field.getType().isAssignableFrom(Integer.class) && value instanceof Long ){
-            	field.set( instance, new Integer(((Long)value).intValue()));
+            Object value = null;
+            if(field.getType().isAssignableFrom(Long.class)){
+            	 value = resultSet.getLong( index++ );
+            }else if(field.getType().isAssignableFrom(Integer.class)){
+            	value = resultSet.getInt( index++ );
             }else{
-            	field.set( instance, value );
+            	value = resultSet.getObject( index++ );
             }
+           
+            field.set( instance, value );
+            
+//            if(!field.getType().isAssignableFrom(value.getClass()) && field.getType().isAssignableFrom(Integer.class) && value instanceof Long ){
+//            	field.set( instance, new Integer(((Long)value).intValue()));
+//            }else{
+//            	field.set( instance, value );
+//            }
         }
         
         copyDBData(instance);
         return instance;
     }
- 
+
 
     /*
      * xxx1 and xxx2 not equal to null 
@@ -385,7 +455,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
         return null;
     }
 
-    
+
     /*
      * select field1,field2.... from table where primaryKey=xx;
      */
@@ -393,6 +463,7 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
     {
         Query.SelectionQuery select = null;
         Query.WhereQuery whereClause = null;
+        int pkCount = 0;
         for ( Field field : clazz.getDeclaredFields() ) {
             PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
             
@@ -404,19 +475,24 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
             }
             
             if ( primaryKey != null) {
+            	pkCount++;
+                if(pkCount>1){
+                	throw new RuntimeException(getClass().getName()+ " has more than two primary keys!");
+                }
                 if (whereClause == null) {
                     whereClause = Query.where( fieldName );
                 } else {
                     whereClause.and(fieldName);
                 }
+            
                 whereClause.isEqualTo("?");
             }
         }
 
         return select.from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())).toString() + whereClause.toString();
     }
-    
-    
+
+
     //find object by non-primary key.
     private String buildFindQuery(String dataBaseName, String columnName)
     {
@@ -441,27 +517,30 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
 
         return select.from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())).toString() + whereClause.toString();
     }
-   
+
     public void delete()
         throws SQLException
     {
         delete(this.getConn(),this.getDbName());
     }
-    
-    
+
+
     public void delete(Connection connection, String dataBaseName)
     throws SQLException
-	{
-	    ArrayList<Object> args = new ArrayList<Object>();
-	    String query = buildDeletionQuery( args, dataBaseName);
-	
-		PreparedStatement statement = connection.prepareStatement(query);
-	    bindArguments(statement, args);
-	    logger().debug("Executing query '{}' with arguments {}", query, args);
-	    statement.executeUpdate();
-	}
-    
-    
+    {
+        ArrayList<Object> args = new ArrayList<Object>();
+        String query = buildDeletionQuery( args, dataBaseName);
+
+    	PreparedStatement statement = connection.prepareStatement(query);
+        bindArguments(statement, args);
+        logger().debug("Executing query '{}' with arguments {}", query, args);
+        int c = statement.executeUpdate();
+        if(c ==0){
+        	throw new RuntimeException("ActiveRecord delete nothing|query="+query);
+        }
+    }
+
+
     /*
      * delete table xxx where field1=x1,field2=x2....
      */
@@ -469,46 +548,32 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
     {
         try {
             Query.WhereQuery whereClause = null;
-            for (Field field : clazz.getDeclaredFields()) {
+            boolean foundPK=false;
+            for (Field field : getClass().getDeclaredFields()) {
+                PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
                 field.setAccessible(true);
-                Object arg = field.get(this);
-                if ( arg != null) {
-                    String fieldName = field.getName();
-                    if (whereClause == null) {
-                        whereClause = Query.where( fieldName );
-                    } else {
-                        whereClause.and(fieldName);
-                    }
-                    whereClause.isEqualTo("?");
-                    args.add(arg);
+                if (primaryKey != null) {
+                	foundPK = true;
+                	if(whereClause==null){
+                		whereClause = Query.where(field.getName()).isEqualTo( "?" );
+            		}else{
+            			whereClause = whereClause.and(field.getName()).isEqualTo( "?" );
+            		}
+                	args.add(field.get(this));
                 }
             }
-            return Query.delete().from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())) + whereClause.toString();
+            if(!foundPK){
+            	throw new RuntimeException(getClass().getName()+" did not have primary key!");
+            }
+           
+           return Query.delete().from((dataBaseName==null?"":(dataBaseName+"."))+className2tblName(getClass().getSimpleName())) + whereClause.toString();
         } catch (IllegalAccessException ignored) {}
         return null;
     }
-    
- 
-    private String className2tblName(String className){
-    	StringBuffer res = new StringBuffer();
-    	int len = className.length();
-    	for(int i=0;i<len;i++){
-    		char c = className.charAt(i);
-    		if(i ==0 && c <='Z' &&  c>= 'A'){// lower first char
-    			res.append((char)(c+32));
-    		}else if(c <='Z' &&  c>= 'A'){
-    			res.append('_');
-    			res.append((char)(c+32));
-    		}else{
-    			res.append(c);
-    		}
-    	}
-		return res.toString();
-    }
-    
-    
+
+
     @SuppressWarnings("unused")
-	private String tblName2ClassName(String tblName){
+    private String tblName2ClassName(String tblName){
     	StringBuffer res = new StringBuffer();
     	int len = tblName.length();
     	for(int i=0;i<len;i++){
@@ -527,7 +592,25 @@ public abstract class ActiveRecord<T extends ActiveRecord<T>>
     			res.append(c);
     		}
     	}
-		return res.toString();
+    	return res.toString();
+    }
+
+
+    private String className2tblName(String className){
+    	StringBuffer res = new StringBuffer();
+    	int len = className.length();
+    	for(int i=0;i<len;i++){
+    		char c = className.charAt(i);
+    		if(i ==0 && c <='Z' &&  c>= 'A'){// lower first char
+    			res.append((char)(c+32));
+    		}else if(c <='Z' &&  c>= 'A'){
+    			res.append('_');
+    			res.append((char)(c+32));
+    		}else{
+    			res.append(c);
+    		}
+    	}
+    	return res.toString();
     }
 
 }
